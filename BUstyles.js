@@ -233,6 +233,7 @@ const config = {
       {
         style: 'font-weight:bold',
         words: [
+          'WEBMREMOTEWS Service Notification interface update',
           'WEBREMOTEWS MPXR interface update',
           'WEBREMOTEWS INTERFACE UPDATE',
           'Subject Code',
