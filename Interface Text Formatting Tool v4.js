@@ -1,5 +1,5 @@
 /* eslint semi: ["error", "always"] */
-import config from "./BUstyles";
+import config from "./styles";
 var primBUPartner = top.GUIDE.PE[top.GUIDE.PE.curPrEv].PartnersTable.find(
   p => p.PartnerFunction === "BU Responsible" && p.MainPartner
 );
