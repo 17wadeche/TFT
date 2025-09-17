@@ -1,45 +1,39 @@
 /* eslint semi: ["error", "always"] */
-import config from "./styles";
-var primBUPartner = top.GUIDE.PE[top.GUIDE.PE.curPrEv].PartnersTable.find(
-  p => p.PartnerFunction === "BU Responsible" && p.MainPartner
-);
-var BUresp = primBUPartner ? primBUPartner.Name : null;
-var primOUPartner = top.GUIDE.PE[top.GUIDE.PE.curPrEv].PartnersTable.find(
-  p => p.PartnerFunction === "OU Responsible" && p.MainPartner
-);
-var OUResp = primOUPartner ? primOUPartner.Name : null;
+import config from "./styles"; 
 function mergeConfig(target, source) {
   if (!source) return;
-  if (source.styleWords) {
-    target.styleWords.push(...source.styleWords);
-  }
-  if (source.boldLinesKeyWords) {
-    target.boldLinesKeyWords.push(...source.boldLinesKeyWords);
-  }
+  if (source.styleWords) target.styleWords.push(...source.styleWords);
+  if (source.boldLinesKeyWords) target.boldLinesKeyWords.push(...source.boldLinesKeyWords);
 }
-var finalConfig = {
-  styleWords: [],
-  boldLinesKeyWords: []
-};
-if (BUresp && config[BUresp]) {
-  mergeConfig(finalConfig, config[BUresp]);
-  if (OUResp) {
-    if (config[BUresp][OUResp]) {
-      mergeConfig(finalConfig, config[BUresp][OUResp]);
-    } else {
-      for (const possibleOU of Object.keys(config[BUresp])) {
-        if (possibleOU === "styleWords" || possibleOU === "boldLinesKeyWords") {
-          continue;
-        }
-        const ouObj = config[BUresp][possibleOU];
-        if (ouObj && typeof ouObj === "object" && ouObj[OUResp]) {
-          mergeConfig(finalConfig, ouObj);
-          mergeConfig(finalConfig, ouObj[OUResp]);
-          break;
-        }
-      }
+function getOUFromPage() {
+  try {
+    const doc = (top?.document || document);
+    const els = Array.from(doc.querySelectorAll("lightning-formatted-text"));
+    const texts = els.map(el => (el.textContent || "").trim()).filter(Boolean);
+    const keyMap = new Map(Object.keys(config).map(k => [k.toLowerCase(), k]));
+    for (const t of texts) {
+      const match = keyMap.get(t.toLowerCase());
+      if (match) return match;      // e.g., "Ventilation"
     }
+  } catch (e) {
   }
+  return null;
+}
+const finalConfig = { styleWords: [], boldLinesKeyWords: [] };
+const OUKey = getOUFromPage();
+if (OUKey && config[OUKey]) {
+  mergeConfig(finalConfig, config[OUKey]);
+} else {
+  console.warn("[Interface Formatter] OU not found on page or not defined in styles.js.");
+}
+if (finalConfig.styleWords.length) {
+  const seen = new Set();
+  finalConfig.styleWords = finalConfig.styleWords.filter(sw => {
+    const key = sw.style + "||" + (sw.words || []).join("|");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 function escapeRegExp(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
