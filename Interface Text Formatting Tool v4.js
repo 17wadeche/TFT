@@ -6,16 +6,60 @@ function mergeConfig(target, source) {
   if (source.boldLinesKeyWords) target.boldLinesKeyWords.push(...source.boldLinesKeyWords);
 }
 function getOUFromPage() {
-  try {
-    const doc = (top?.document || document);
-    const els = Array.from(doc.querySelectorAll("lightning-formatted-text"));
-    const texts = els.map(el => (el.textContent || "").trim()).filter(Boolean);
-    const keyMap = new Map(Object.keys(config).map(k => [k.toLowerCase(), k]));
-    for (const t of texts) {
-      const match = keyMap.get(t.toLowerCase());
-      if (match) return match;
-    }
-  } catch (e) {
+  const keyMap = new Map(Object.keys(config).map(k => [k.toLowerCase(), k]));
+  function normalize(s) {
+    return (s || "").replace(/\s+/g, " ").trim();
+  }
+  function tryMatch(str) {
+    const t = normalize(str);
+    if (!t) return null;
+    const hit = keyMap.get(t.toLowerCase());
+    return hit || null;
+  }
+  function collectFromDoc(doc) {
+    try {
+      const lfts = Array.from(doc.querySelectorAll("lightning-formatted-text"));
+      for (const el of lfts) {
+        const v = el.value ?? el.getAttribute?.("value") ?? el.textContent ?? el.innerText;
+        const match = tryMatch(v);
+        if (match) return match;
+      }
+    } catch (_) {}
+    try {
+      const all = Array.from(doc.querySelectorAll("*"));
+      const labelEl = all.find(n => /Responsible\s+Integrated\s+OU/i.test(normalize(n.textContent)));
+      if (labelEl) {
+        const container = labelEl.closest("records-record-layout-item, lightning-layout, div, section") || labelEl.parentElement;
+        if (container) {
+          const valueEl =
+            container.querySelector("lightning-formatted-text") ||
+            container.querySelector("[data-output-element], [data-value], [title]");
+          if (valueEl) {
+            const v = valueEl.value ?? valueEl.getAttribute?.("value") ?? valueEl.textContent ?? valueEl.innerText ?? valueEl.title;
+            const match = tryMatch(v);
+            if (match) return match;
+          }
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+  function* docs(rootDoc) {
+    yield rootDoc;
+    try {
+      const iframes = Array.from(rootDoc.querySelectorAll("iframe"));
+      for (const f of iframes) {
+        try {
+          const idoc = f.contentDocument || f.contentWindow?.document;
+          if (idoc) yield* docs(idoc);
+        } catch (_) { /* cross-origin iframe, skip */ }
+      }
+    } catch (_) {}
+  }
+  const root = (top?.document || document);
+  for (const d of docs(root)) {
+    const hit = collectFromDoc(d);
+    if (hit) return hit; // e.g., "Ventilation"
   }
   return null;
 }
