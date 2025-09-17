@@ -132,8 +132,8 @@ if (finalConfig.styleWords.length || finalConfig.boldLinesKeyWords.length) {
       if (
         l.includes("WEBMREMOTEWS") &&
         dateMatch &&
-        newLinesArr.length > 0 &&                              // not the first line overall
-        newLinesArr[newLinesArr.length - 1].trim() !== ""      // previous line isn't already blank
+        newLinesArr.length > 0 &&                              
+        newLinesArr[newLinesArr.length - 1].trim() !== "" 
       ) {
         newLinesArr.push("");
       }
