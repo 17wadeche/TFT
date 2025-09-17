@@ -198,264 +198,117 @@ const defaultStyleWords = [
     ]
   }
 ]
-
 const config = {
-  MNAV: { //BU
+  'Advance Ablation Solutions (AAS)': { 
     styleWords: defaultStyleWords,
-    'Cranial and Spinal Technologies': { // OU 
-      styleWords: defaultStyleWords,
-    },
-    'Ear / Nose / Throat': { // OU 
-      styleWords: defaultStyleWords,
-    }
   },
-  MAE: { // BU
+  'Advanced Energy': { 
     styleWords: defaultStyleWords,
-    'Cranial and Spinal Technologies': { //OU
-      styleWords: defaultStyleWords,
-    }
   },
-  PSS: { // BU
-    styleWords: [
-      {
-        style: 'background:yellow',
-        words: ['Date']
-      }
-    ],
-    'Cranial and Spinal Technologies': { //OU
-      styleWords: defaultStyleWords,
-    }
-  },
-  Xomed: { // BU
-    boldLinesKeyWords: ['WEBMREMOTEWS'
-    ],
-    styleWords: [
-      {
-        style: 'font-weight:bold',
-        words: [
-          'WEBMREMOTEWS Service Notification interface update',
-          'WEBREMOTEWS MPXR interface update',
-          'WEBREMOTEWS INTERFACE UPDATE',
-          'Subject Code',
-          'Damage Code',
-          'Cause Code',
-          'Object Part Code',
-          'Date of Pick Up',
-          'Email',
-          'E-mail',
-          'email',
-          'e-mail',
-          'To the following address',
-          'Complaint Source',
-          'What symptoms were observed / why is service being requested?'
-        ]
-      },
-      {
-        style: 'color:blue',
-        words: ['Attachment Received']
-      },
-      {
-        style: 'color:red',
-        words: [
-          'Subject Code',
-          'Damage Code',
-          'Cause Code',
-          'Object Part Code',
-          'Date of Pick Up',
-          'Email',
-          'E-mail',
-          'email',
-          'e-mail',
-          'To the following address',
-          'Complaint Source',
-          'What symptoms were observed / why is service being requested?',
-          'EMAIL',
-          'E-MAIL'
-        ]
-      },
-      {
-        style: 'color:purple',
-        words: [
-          'Contact',
-          'contact',
-          'Facility ID',
-          'facility ID',
-          'Account',
-          'account',
-          'Surgeon',
-          'surgeon',
-          'Initial Reporter',
-          'initial reporter',
-          'Initial reporter',
-          'Physician',
-          'physician'
-        ]
-      },
-      {
-        style: 'background:yellow',
-        words: [
-          'Heat',
-          'heat',
-          'Hot',
-          'hot',
-          'heating',
-          'Heating',
-          'Heated',
-          'heated',
-          'Broke',
-          'broke',
-          'Broken',
-          'broken',
-          'Break',
-          'break',
-          'Fragments',
-          'fragments',
-          'Methodology',
-          'Death',
-          'death',
-          'Injury',
-          'injury',
-          'HOT',
-          'HEAT',
-          'warm',
-          'WARM',
-          'Warm',
-          'BROKE',
-          'BREAK',
-          'FRAGMENT',
-          'DEATH',
-          'INJURY',
-          'Notify',
-          'NOTIFY',
-          'notify',
-          'Notified',
-          'NOTIFIED',
-          'notified',
-          'Aware',
-          'AWARE',
-          'aware',
-          'Correct',
-          'CORRECT',
-          'correct',
-          'Deletion flag is set for the notification'
-        ]
-      }
-    ],
-    'Cranial and Spinal Technologies': { // OU
-      styleWords: defaultStyleWords,
-    }
-  },
-  CRDM: {
+  'Advanced Surgical Technologies': { 
     styleWords: defaultStyleWords,
-    'Cardiac Rhythm Management': { // OU
-      styleWords: [
-        ...defaultStyleWords,
-        {
-          style: 'background:yellow',
-          words: [
-            'Update',
-            'FOLLOWUP ADDITIONAL INFORMATION',
-            'PATIENT MEDICAL HISTORY',
-            'PATIENT EVENT DETAILS:',
-            "Physician's opinion regarding severity",
-            "Physician's opinion on causal relationship and relevance",
-            'Please enter the details',
-            'PATIENT OUTCOME:',
-            'PRODUCT EVENT DETAILS:'
-          ]
-        }
-      ]
-    },
-    'Cardiovascular Diagnostics & Services': { // OU
-      styleWords: defaultStyleWords,
-    },
-    'Mechanical Circulatory Support': { // OU
-      styleWords: defaultStyleWords,
-    }
   },
-  Cryocath: { // BU
-    'Cardiac Ablation Solutions': { // OU
-      styleWords: defaultStyleWords,
-    }
-  },
-  'CV-GALWAY': { // BU
-    'Coronary & Renal Denervation': { // OU
-      styleWords: defaultStyleWords,
-    },
-    'Peripheral Vascular Health': { // OU
-      styleWords: defaultStyleWords,
-    }
-  },
-  'CV-SH': { // BU
-    'Cardiac Surgery': { // OU
-      styleWords: defaultStyleWords,
-    },
-    'Structural Heart and Aortic': { // OU
-      styleWords: defaultStyleWords,
-    }
-  },
-  'CV-SR': { // BU
-    'Structural Heart and Aortic': { // OU
-      styleWords: defaultStyleWords,
-    }
-  },
-  MITG: { // BU
+  'Airways': { 
     styleWords: defaultStyleWords,
-    'Acute Care & Monitoring': { // OU
-      styleWords: defaultStyleWords,
-    },
-    Endoscopy: { // OU
-      styleWords: defaultStyleWords,
-    },
-    Gastrointestinal: { // OU
-      styleWords: defaultStyleWords,
-    },
-    'Patient Monitoring': { // OU
-      styleWords: defaultStyleWords,
-    },
-    'Pelvic Health': { // OU
-      styleWords: defaultStyleWords,
-    },
-    'Renal Care Solutions': { // OU
-      styleWords: defaultStyleWords,
-    },
-    'Respiratory Interventions': { // OU
-      styleWords: defaultStyleWords,
-    },
-    Surgical: { // OU
-      styleWords: defaultStyleWords,
-    },
-    'Surgical Innovations': { // OU
-      styleWords: defaultStyleWords,
-    },
-    'Surgical Robotics': { // OU
-      styleWords: defaultStyleWords,
-    }
   },
-  NEUROMOD: { // BU
+  'Aortic': { 
     styleWords: defaultStyleWords,
-    Neuromodulation: { // OU
-      styleWords: defaultStyleWords,
-    }
   },
-  NeuroSurgery: { // BU
+  'Cardiac Ablation Solutions (CAS)': { 
     styleWords: defaultStyleWords,
-    'Cranial and Spinal Technologies': { // OU
-      styleWords: defaultStyleWords,
-    }
   },
-  NV: { // BU
+  'Cardiac Pacing Therapies (CPT)': { 
     styleWords: defaultStyleWords,
-    Neurovascular: { // OU
-      styleWords: defaultStyleWords,
-    }
   },
-  Spinal: { // BU
+  'China Cranial, Spinal, & Orthopedic Technologies': { 
     styleWords: defaultStyleWords,
-    'Cranial and Spinal Technologies': { // OU
-      styleWords: defaultStyleWords,
-    }
   },
+  'Coronary and Renal Denervation': { 
+    styleWords: defaultStyleWords,
+  },
+  'CSF Therapies': { 
+    styleWords: defaultStyleWords,
+  },
+  'Deep Brain Stimulation (DBS)': { 
+    styleWords: defaultStyleWords,
+  },
+  'Defibrillation Solutions (DS)': { 
+    styleWords: defaultStyleWords,
+  },
+  'Digital Technologies': { 
+    styleWords: defaultStyleWords,
+  },
+  'Ear, Nose & Throat': { 
+    styleWords: defaultStyleWords,
+  },
+  'Endoscopy': { 
+    styleWords: defaultStyleWords,
+  },
+  'EndoVenous': { 
+    styleWords: defaultStyleWords,
+  },
+  'ET Imaging': { 
+    styleWords: defaultStyleWords,
+  },
+  'ET Navigation': { 
+    styleWords: defaultStyleWords,
+  },
+  'Extracorporeal Therapies (ECT)': { 
+    styleWords: defaultStyleWords,
+  },
+  'General Surgical Technologies': { 
+    styleWords: defaultStyleWords,
+  },
+  'Mazor Robotics': { 
+    styleWords: defaultStyleWords,
+  },
+  'Mechanical Circulatory Support (MCS)': { 
+    styleWords: defaultStyleWords,
+  },
+  'Neurovascular': { 
+    styleWords: defaultStyleWords,
+  },
+  'Patient Care Systems (PCS) and Cardiovascular Diagnostics and Services (CDS)': { 
+    styleWords: defaultStyleWords,
+  },
+  'Patient Management': { 
+    styleWords: defaultStyleWords,
+  },
+  'Patient Monitoring': { 
+    styleWords: defaultStyleWords,
+  },
+  'Pelvic Health (PH)': { 
+    styleWords: defaultStyleWords,
+  },
+  'Peripheral Vascular Health (PVH)': { 
+    styleWords: defaultStyleWords,
+  },
+  'Powered Surgical Solutions (PSS)': { 
+    styleWords: defaultStyleWords,
+  },
+  'Radiofrequency Ablation (RFA)': { 
+    styleWords: defaultStyleWords,
+  },
+  'Robotic Surgical Technologies': { 
+    styleWords: defaultStyleWords,
+  },
+  'Spinal Cord Stimulation (SCS)': {
+    styleWords: defaultStyleWords,
+  },
+  'Spine': { 
+    styleWords: defaultStyleWords,
+  },
+  'Surgical Valve Therapies (SVT)': { 
+    styleWords: defaultStyleWords,
+  },
+  'Targeted Drug Delivery (TDD)': { 
+    styleWords: defaultStyleWords,
+  },
+  'Transcatheter Therapies (TCT)': {
+    styleWords: defaultStyleWords,
+  },
+  'Ventilation':{
+    styleWords: defaultStyleWords,
+  }
 };
-
 export default config
