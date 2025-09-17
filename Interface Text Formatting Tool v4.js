@@ -13,7 +13,7 @@ function getOUFromPage() {
     const keyMap = new Map(Object.keys(config).map(k => [k.toLowerCase(), k]));
     for (const t of texts) {
       const match = keyMap.get(t.toLowerCase());
-      if (match) return match;      // e.g., "Ventilation"
+      if (match) return match;
     }
   } catch (e) {
   }
