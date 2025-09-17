@@ -438,10 +438,10 @@ h2 {
   htmlParts.push("</div>");
   htmlParts.push(`<div id="main-content">${content}</div>`);
   var scriptBlock = `
-<script>
-  console.log('Nav is fixed on wide screens, stacked on top at narrow. Date-based line re-ordering applied.');
-</script>
-`;
+    <script>
+      console.log('Nav is fixed on wide screens, stacked on top at narrow. Date-based line re-ordering applied.');
+    </script>
+  `;
   var q = window.open("../crm_ui_frame/blank.htm");
   setTimeout(function() {
     if (!q || !q.document) {
