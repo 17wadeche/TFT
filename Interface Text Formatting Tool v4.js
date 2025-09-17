@@ -43,23 +43,31 @@ function getFieldTextByLabel(label){
 }
 function getRecordIdFromPage(){
   const root = top?.document || document;
-  const labelHits = ["Case Number", "Change Number", "Complaint Number", "Record Number"];
-  for (const lbl of labelHits){
-    const v = getFieldTextByLabel(lbl);
-    if (/\b[A-Z]{2}-\d{3,}\b/.test(v)) return v.match(/\b[A-Z]{2}-\d{3,}\b/)[0];
-    if (v) return v; // fallback to whatever the field shows
-  }
-  const cnRe = /\b[A-Z]{2}-\d{3,}\b/; // matches CN-000167, etc.
+  const titleHit = (root.title || "").match(/\b[A-Z]{2}-\d{3,}\b/);
+  if (titleHit) return titleHit[0];
+  const cnRe = /\b[A-Z]{2}-\d{3,}\b/;
   for (const d of docs(root)) {
     try {
-      const els = Array.from(d.querySelectorAll("lightning-formatted-text"));
+      let els = Array.from(d.querySelectorAll("[data-output-element-id='output-field']"));
+      els = els.concat(Array.from(d.querySelectorAll("lightning-formatted-text[slot='output']")));
+      els = els.concat(Array.from(d.querySelectorAll("lightning-formatted-text")));
       for (const el of els) {
         const t = norm(valOf(el));
+        if (!t) continue;
         const m = t.match(cnRe);
         if (m) return m[0];
       }
     } catch(_) {}
   }
+  try {
+    const walker = root.createTreeWalker(root.body, NodeFilter.SHOW_TEXT, null);
+    let node;
+    while ((node = walker.nextNode())) {
+      const txt = norm(node.nodeValue);
+      const m = txt.match(cnRe);
+      if (m) return m[0];
+    }
+  } catch(_) {}
   return null;
 }
 function getOUFromPage() {
@@ -122,6 +130,7 @@ function getOUFromPage() {
 }
 const finalConfig = { styleWords: [], boldLinesKeyWords: [] };
 const OUKey = getOUFromPage();
+console.debug("[IF] OUKey:", OUKey);
 if (OUKey && config[OUKey]) {
   mergeConfig(finalConfig, config[OUKey]);
 } else {
@@ -308,7 +317,7 @@ if (finalConfig.styleWords.length || finalConfig.boldLinesKeyWords.length) {
     };
   }
   const recordId = getRecordIdFromPage() || "Record";
-  const textInfoF = ["Interface Details", "Interface Update Details", "As Reported Event Description"];
+  const textInfoF = ["Source Information"];
   textInfoF.forEach(function(t) {
     const txt = getFieldTextByLabel(t);
     const tId = t.replace(/\W/gi, "");
@@ -502,10 +511,14 @@ h2 {
   `;
   var q = window.open("../crm_ui_frame/blank.htm");
   setTimeout(function() {
-    if (!q || !q.document) {
-      alert("Popup blocked or failed to open.");
-      return;
-    }
+    if (!q || !q.document) { alert("Popup blocked or failed to open."); return; }
     q.document.body.innerHTML = styleBlock + htmlParts.join("") + scriptBlock;
+    setTimeout(function(){
+      const late = getRecordIdFromPage();
+      if (late) {
+        const brand = q.document.querySelector(".brand");
+        if (brand) brand.innerHTML = `Interface Formatter<br/>${late}`;
+      }
+    }, 600);
   }, 100);
 }
