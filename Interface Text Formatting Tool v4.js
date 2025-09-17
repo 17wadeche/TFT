@@ -5,6 +5,63 @@ function mergeConfig(target, source) {
   if (source.styleWords) target.styleWords.push(...source.styleWords);
   if (source.boldLinesKeyWords) target.boldLinesKeyWords.push(...source.boldLinesKeyWords);
 }
+function* docs(rootDoc) {
+  yield rootDoc;
+  try {
+    const iframes = Array.from(rootDoc.querySelectorAll("iframe"));
+    for (const f of iframes) {
+      try {
+        const idoc = f.contentDocument || f.contentWindow?.document;
+        if (idoc) yield* docs(idoc);
+      } catch (_) {}
+    }
+  } catch (_) {}
+}
+function norm(s){ return (s||"").replace(/\s+/g," ").trim(); }
+function valOf(el){
+  return el?.value ?? el?.getAttribute?.("value") ?? el?.textContent ?? el?.innerText ?? el?.title ?? "";
+}
+function getFieldTextByLabel(label){
+  const re = new RegExp("\\b" + label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b", "i");
+  const root = top?.document || document;
+  for (const d of docs(root)) {
+    try {
+      const candidates = Array.from(d.querySelectorAll(".slds-form-element__label, label, span, div, lightning-output-field"));
+      const labelEl = candidates.find(n => re.test(norm(n.textContent)));
+      if (!labelEl) continue;
+      const container = labelEl.closest("records-record-layout-item, lightning-layout, .slds-form-element, div, section") || labelEl.parentElement;
+      if (!container) continue;
+      const valueEl =
+        container.querySelector("[slot='output'][data-output-element-id='output-field']") ||
+        container.querySelector("lightning-formatted-textarea, lightning-formatted-rich-text, lightning-formatted-text") ||
+        container.querySelector("[data-output-element], [data-value], [title]");
+      const v = norm(valOf(valueEl));
+      if (v) return v;
+    } catch(_) {}
+  }
+  return null;
+}
+function getRecordIdFromPage(){
+  const root = top?.document || document;
+  const labelHits = ["Case Number", "Change Number", "Complaint Number", "Record Number"];
+  for (const lbl of labelHits){
+    const v = getFieldTextByLabel(lbl);
+    if (/\b[A-Z]{2}-\d{3,}\b/.test(v)) return v.match(/\b[A-Z]{2}-\d{3,}\b/)[0];
+    if (v) return v; // fallback to whatever the field shows
+  }
+  const cnRe = /\b[A-Z]{2}-\d{3,}\b/; // matches CN-000167, etc.
+  for (const d of docs(root)) {
+    try {
+      const els = Array.from(d.querySelectorAll("lightning-formatted-text"));
+      for (const el of els) {
+        const t = norm(valOf(el));
+        const m = t.match(cnRe);
+        if (m) return m[0];
+      }
+    } catch(_) {}
+  }
+  return null;
+}
 function getOUFromPage() {
   const keyMap = new Map(Object.keys(config).map(k => [k.toLowerCase(), k]));
   function normalize(s) {
@@ -250,14 +307,15 @@ if (finalConfig.styleWords.length || finalConfig.boldLinesKeyWords.length) {
       links: LinksSorted
     };
   }
-  var textInfoF = ["Interface Details", "Interface Update Details", "As Reported Event Description"];
+  const recordId = getRecordIdFromPage() || "Record";
+  const textInfoF = ["Interface Details", "Interface Update Details", "As Reported Event Description"];
   textInfoF.forEach(function(t) {
-    var txt = top.GUIDE.PE[top.GUIDE.PE.curPrEv].textInfo[t];
-    var tId = t.replace(/\W/gi, "");
+    const txt = getFieldTextByLabel(t);
+    const tId = t.replace(/\W/gi, "");
     if (txt) {
       lines.push('<div class="card">');
-      lines.push('<h2 id="' + tId + '">' + top.GUIDE.PE.curPrEv + " " + t + "</h2>");
-      var ft = formatText(txt, t);
+      lines.push('<h2 id="' + tId + '">' + recordId + " " + t + "</h2>");
+      const ft = formatText(txt, t);
       lines = lines.concat(ft.lines);
       links.push({ id: tId, title: t });
       links = links.concat(ft.links);
@@ -393,7 +451,7 @@ h2 {
 `;
   var htmlParts = [];
   htmlParts.push('<div id="modern-nav">');
-  htmlParts.push(`<div class="brand">Interface Formatter<br/>${top.GUIDE.PE.curPrEv}</div>`);
+  htmlParts.push(`<div class="brand">Interface Formatter<br/>${recordId}</div>`);
   htmlParts.push("<ul>");
   groupedNav.forEach(group => {
     htmlParts.push("<li>");
