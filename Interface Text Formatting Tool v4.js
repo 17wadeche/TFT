@@ -1,5 +1,31 @@
 /* eslint semi: ["error", "always"] */
 import config from "./styles"; 
+if (!isSourceInfoActive()) {
+  console.info("[Interface Formatter] Source Info tab not active — skipping.");
+  return;
+}
+function isSourceInfoActive() {
+  const root = top?.document || document;
+  const norm = s => (s || "").replace(/\s+/g, " ").trim().toLowerCase();
+  for (const d of docs(root)) {
+    try {
+      const sel = [
+        "a.slds-tabs_default__link[data-label='Source Info'][aria-selected='true']",
+        "[role='tab'][data-label='Source Info'][aria-selected='true']"
+      ];
+      for (const s of sel) {
+        if (d.querySelector(s)) return true;
+      }
+      const tabs = Array.from(d.querySelectorAll("a.slds-tabs_default__link[role='tab'], [role='tab'].slds-tabs_default__link, [role='tab']"));
+      const hit = tabs.find(el =>
+        el.getAttribute("aria-selected") === "true" &&
+        (norm(el.getAttribute("data-label")) === "source info" || norm(el.textContent) === "source info")
+      );
+      if (hit) return true;
+    } catch (_) {}
+  }
+  return false;
+}
 function mergeConfig(target, source) {
   if (!source) return;
   if (source.styleWords) target.styleWords.push(...source.styleWords);
