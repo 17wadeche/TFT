@@ -1,36 +1,28 @@
 /* eslint semi: ["error", "always"] */
 import config from "./styles";
-function* docs(rootDoc) {
-  yield rootDoc;
+function* allRoots(rootDoc) {
+  function* walk(node) {
+    if (node) yield node;
+    const elements = node?.querySelectorAll ? Array.from(node.querySelectorAll("*")) : [];
+    for (const el of elements) {
+      if (el.shadowRoot) {
+        yield* walk(el.shadowRoot);
+      }
+    }
+  }
+  yield* walk(rootDoc);
   try {
     const iframes = Array.from(rootDoc.querySelectorAll("iframe"));
     for (const f of iframes) {
       try {
         const idoc = f.contentDocument || f.contentWindow?.document;
-        if (idoc) yield* docs(idoc);
-      } catch (_) {}
+        if (idoc) yield* walk(idoc);
+      } catch(_) {}
     }
-  } catch (_) {}
+  } catch(_) {}
 }
 const norm = s => (s || "").replace(/\s+/g, " ").trim();
 const valOf = el => el?.value ?? el?.getAttribute?.("value") ?? el?.textContent ?? el?.innerText ?? el?.title ?? "";
-function isSourceInfoActive() {
-  const root = top?.document || document;
-  const matchText = s => (s || "").replace(/\s+/g, " ").trim().toLowerCase() === "source info";
-  for (const d of docs(root)) {
-    try {
-      if (d.querySelector("a.slds-tabs_default__link[data-label='Source Info'][aria-selected='true']")) return true;
-      if (d.querySelector("[role='tab'][data-label='Source Info'][aria-selected='true']")) return true;
-      const tabs = Array.from(d.querySelectorAll("a.slds-tabs_default__link[role='tab'], [role='tab']"));
-      const hit = tabs.find(el =>
-        el.getAttribute("aria-selected") === "true" &&
-        (matchText(el.getAttribute("data-label")) || matchText(el.textContent))
-      );
-      if (hit) return true;
-    } catch (_) {}
-  }
-  return false;
-}
 function mergeConfig(target, source) {
   if (!source) return;
   if (source.styleWords) target.styleWords.push(...source.styleWords);
@@ -39,9 +31,9 @@ function mergeConfig(target, source) {
 function getFieldTextByLabel(label){
   const re = new RegExp("\\b" + label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b", "i");
   const root = top?.document || document;
-  for (const d of docs(root)) {
+  for (const r of allRoots(root)) {
     try {
-      const candidates = Array.from(d.querySelectorAll(".slds-form-element__label, label, span, div, lightning-output-field"));
+      const candidates = Array.from(r.querySelectorAll(".slds-form-element__label, label, span, div, lightning-output-field"));
       const labelEl = candidates.find(n => re.test(norm(n.textContent)));
       if (!labelEl) continue;
       const container = labelEl.closest("records-record-layout-item, lightning-layout, .slds-form-element, div, section") || labelEl.parentElement;
@@ -56,16 +48,44 @@ function getFieldTextByLabel(label){
   }
   return null;
 }
+function getActiveTabLabel(){
+  const root = top?.document || document;
+  for (const r of allRoots(root)) {
+    try {
+      const selected = r.querySelector('[role="tab"][aria-selected="true"]');
+      if (!selected) continue;
+      const lbl = selected.getAttribute("data-label") || selected.textContent || "";
+      return norm(lbl);
+    } catch(_) {}
+  }
+  return null;
+}
+function safeClick(el){
+  try {
+    el.dispatchEvent(new MouseEvent("mousedown", {bubbles:true, cancelable:true}));
+    el.dispatchEvent(new MouseEvent("mouseup",   {bubbles:true, cancelable:true}));
+    el.click();
+  } catch(_) { try { el.click(); } catch(_) {} }
+}
+async function ensureOnTab(label, {timeout=6000} = {}){
+  const root = top?.document || document;
+  const wanted = findTabByLabel(label);
+  if (!wanted) return false;
+  if (wanted.getAttribute("aria-selected") === "true") return true;
+  safeClick(wanted);
+  const ok = await waitFor(() => wanted.getAttribute("aria-selected") === "true", {timeout});
+  return !!ok;
+}
 function getRecordIdFromPage(){
   const root = top?.document || document;
   const titleHit = (root.title || "").match(/\b[A-Z]{2}-\d{3,}\b/);
   if (titleHit) return titleHit[0];
   const cnRe = /\b[A-Z]{2}-\d{3,}\b/;
-  for (const d of docs(root)) {
+  for (const r of allRoots(root)) {
     try {
-      let els = Array.from(d.querySelectorAll("[data-output-element-id='output-field']"));
-      els = els.concat(Array.from(d.querySelectorAll("lightning-formatted-text[slot='output']")));
-      els = els.concat(Array.from(d.querySelectorAll("lightning-formatted-text")));
+      let els = Array.from(r.querySelectorAll("[data-output-element-id='output-field']"));
+      els = els.concat(Array.from(r.querySelectorAll("lightning-formatted-text[slot='output']")));
+      els = els.concat(Array.from(r.querySelectorAll("lightning-formatted-text")));
       for (const el of els) {
         const t = norm(valOf(el));
         if (!t) continue;
@@ -85,76 +105,108 @@ function getRecordIdFromPage(){
   } catch(_) {}
   return null;
 }
+function findTabByLabel(label){
+  const root = top?.document || document;
+  const isLbl = s => (s||"").replace(/\s+/g," ").trim().toLowerCase() === label.toLowerCase();
+  for (const r of allRoots(root)) {
+    try {
+      const el = r.querySelector(`[role="tab"][data-label="${label}"]`);
+      if (el) return el;
+      const tabs = Array.from(r.querySelectorAll('[role="tab"]'));
+      const hit = tabs.find(t => isLbl(t.getAttribute("data-label")) || isLbl(t.textContent));
+      if (hit) return hit;
+    } catch(_) {}
+  }
+  return null;
+}
+function waitFor(predicate, {interval=150, timeout=4000} = {}){
+  return new Promise(resolve => {
+    const start = Date.now();
+    const tick = () => {
+      try {
+        const v = predicate();
+        if (v) return resolve(v);
+      } catch(_) {}
+      if (Date.now() - start >= timeout) return resolve(null);
+      setTimeout(tick, interval);
+    };
+    tick();
+  });
+}
+async function getOUWithTabHop(){
+  let ou = getOUFromPage();
+  if (ou) return ou;
+  const srcTab = findTabByLabel("Source Info");
+  const detTab = findTabByLabel("Details");
+  if (!srcTab || !detTab) return null;
+  if (srcTab.getAttribute("aria-selected") !== "true" && detTab.getAttribute("aria-selected") === "true") {
+    return await waitFor(() => getOUFromPage());
+  }
+  detTab.click();
+  await waitFor(() => detTab.getAttribute("aria-selected") === "true");
+  ou = await waitFor(() => getOUFromPage());
+  try {
+    srcTab.click();
+    await waitFor(() => srcTab.getAttribute("aria-selected") === "true");
+  } catch(_) {}
+  return ou;
+}
 function getOUFromPage() {
   const keyMap = new Map(Object.keys(config).map(k => [k.toLowerCase(), k]));
-  function normalize(s) {
-    return (s || "").replace(/\s+/g, " ").trim();
-  }
-  function tryMatch(str) {
-    const t = normalize(str);
-    if (!t) return null;
-    const hit = keyMap.get(t.toLowerCase());
-    return hit || null;
-  }
-  function collectFromDoc(doc) {
+  const tryMatch = (str) => {
+    const t = norm(str);
+    return t ? (keyMap.get(t.toLowerCase()) || null) : null;
+  };
+  const root = top?.document || document;
+  for (const r of allRoots(root)) {
     try {
-      const lfts = Array.from(doc.querySelectorAll("lightning-formatted-text"));
+      const lfts = Array.from(r.querySelectorAll("lightning-formatted-text"));
       for (const el of lfts) {
-        const v = el.value ?? el.getAttribute?.("value") ?? el.textContent ?? el.innerText;
-        const match = tryMatch(v);
-        if (match) return match;
+        const v = valOf(el);
+        const hit = tryMatch(v);
+        if (hit) return hit;
       }
-    } catch (_) {}
+    } catch(_) {}
     try {
-      const all = Array.from(doc.querySelectorAll("*"));
-      const labelEl = all.find(n => /Responsible\s+Integrated\s+OU/i.test(normalize(n.textContent)));
+      const all = Array.from(r.querySelectorAll("*"));
+      const labelEl = all.find(n => /Responsible\s+Integrated\s+OU/i.test(norm(n.textContent)));
       if (labelEl) {
         const container = labelEl.closest("records-record-layout-item, lightning-layout, div, section") || labelEl.parentElement;
         if (container) {
           const valueEl =
             container.querySelector("lightning-formatted-text") ||
             container.querySelector("[data-output-element], [data-value], [title]");
-          if (valueEl) {
-            const v = valueEl.value ?? valueEl.getAttribute?.("value") ?? valueEl.textContent ?? valueEl.innerText ?? valueEl.title;
-            const match = tryMatch(v);
-            if (match) return match;
-          }
+          const v = valOf(valueEl);
+          const hit = tryMatch(v);
+          if (hit) return hit;
         }
       }
-    } catch (_) {}
-    return null;
-  }
-  function* docs(rootDoc) {
-    yield rootDoc;
-    try {
-      const iframes = Array.from(rootDoc.querySelectorAll("iframe"));
-      for (const f of iframes) {
-        try {
-          const idoc = f.contentDocument || f.contentWindow?.document;
-          if (idoc) yield* docs(idoc);
-        } catch (_) { /* cross-origin iframe, skip */ }
-      }
-    } catch (_) {}
-  }
-  const root = (top?.document || document);
-  for (const d of docs(root)) {
-    const hit = collectFromDoc(d);
-    if (hit) return hit; // e.g., "Ventilation"
+    } catch(_) {}
   }
   return null;
 }
-(function run() {
-  if (!isSourceInfoActive()) {
-    console.info("[Interface Formatter] Source Info tab not active — skipping.");
-    return;
-  }
+async function getSourceInfoTextEnsured(){
+  const onSI = await ensureOnTab("Source Information") || await ensureOnTab("Source Info");
+  if (!onSI) return null;
+  const txt = await waitFor(() => getFieldTextByLabel("Source Information") || getFieldTextByLabel("Source Info"), {timeout: 6000});
+  return txt || null;
+}
+async function getOUEnsured(){
+  let ou = getOUFromPage();
+  if (ou) return ou;
+  const onDetails = await ensureOnTab("Details", {timeout: 8000});
+  if (!onDetails) return null;
+  ou = await waitFor(() => getOUFromPage(), {timeout: 5000});
+  return ou || null;
+}
+(async function run() {
+  const originalTab = getActiveTabLabel();
+  const OUKey = await getOUEnsured();
   const finalConfig = { styleWords: [], boldLinesKeyWords: [] };
-  const OUKey = getOUFromPage();
-  console.debug("[IF] OUKey:", OUKey);
   if (OUKey && config[OUKey]) {
     mergeConfig(finalConfig, config[OUKey]);
   } else {
-    console.warn("[Interface Formatter] OU not found on page or not defined in styles.js.");
+    console.warn("[Interface Formatter] OU not found in page or not defined in styles.js.", OUKey);
   }
   if (finalConfig.styleWords.length) {
     const seen = new Set();
@@ -164,6 +216,20 @@ function getOUFromPage() {
       seen.add(key);
       return true;
     });
+  }
+  const txtSourceInfo = await getSourceInfoTextEnsured();
+  const recordId = getRecordIdFromPage() || "Record";
+  if (originalTab) {
+    if (!(await ensureOnTab(originalTab))) {
+      if (/^details$/i.test(originalTab)) {
+        await ensureOnTab("Details");
+      } else if (/source info(rmation)?/i.test(originalTab)) {
+        await ensureOnTab("Source Information") || await ensureOnTab("Source Info");
+      }
+    }
+  }
+  if (!txtSourceInfo) {
+    console.warn("[Interface Formatter] No Source Information found to render.");
   }
   function escapeRegExp(str) {
     return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -191,7 +257,6 @@ function getOUFromPage() {
         }
       });
     });
-
     events.sort((a, b) => {
       if (a.index !== b.index) return a.index - b.index;
       return a.type === "start" ? -1 : 1;
@@ -340,7 +405,7 @@ function getOUFromPage() {
     const recordId = getRecordIdFromPage() || "Record";
     const textInfoF = ["Source Information"];
     textInfoF.forEach(function(t) {
-      const txt = getFieldTextByLabel(t);
+      const txt = (t === "Source Information") ? txtSourceInfo : getFieldTextByLabel(t);
       const tId = t.replace(/\W/gi, "");
       if (txt) {
         lines.push('<div class="card">');
