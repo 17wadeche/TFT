@@ -403,7 +403,8 @@ async function getOUEnsured(){
   }
   const rows = await getRowwiseSourceInfoEnsured();
   const srcRows = rows.filter(r => r.sourceText && !r.add);
-  const addRows = rows.filter(r => r.add); 
+  const flaggedRows = rows.filter(r => r.add && r.sourceText);
+  const flaggedRowsNoSrc = rows.filter(r => r.add && !r.sourceText);
   const recordId = (await getRecordIdSmart()) || "Record";
   if (originalTab) {
     if (!(await ensureOnTab(originalTab))) {
@@ -602,23 +603,24 @@ async function getOUEnsured(){
       links.push({ id: tId, title: t });
       lines.push("</div>");
     } else {
-      console.warn("[Interface Formatter] No Source Information rows found.");
+      console.warn("[Interface Formatter] No unflagged Source Information rows found.");
     }
-    if (addRows.length) {
+    if (flaggedRows.length) {
       const t = "Additional Source Information";
       const tId = t.replace(/\W/gi, "");
       lines.push('<div class="card">');
       lines.push('<h2 id="' + tId + '">' + t + "</h2>");
-      addRows.forEach(r => {
-        const { title, href, rowIndex } = r.add;
-        const label = title || "Additional Info Review";
-        lines.push(`<div>Row ${rowIndex}: <a target="_blank" rel="noopener" href="${href}">${label}</a></div>`);
+      flaggedRows.forEach((r, i) => {
+        const ft = formatText(r.sourceText, t);
+        lines.push(`<div><strong>Row ${r.rowIndex ?? (i+1)}</strong></div>`);
+        lines = lines.concat(ft.lines);
+        if (i < flaggedRows.length - 1) lines.push("<br/>");
       });
       links.push({ id: tId, title: t });
       lines.push("</div>");
+    } else {
+      console.info("[Interface Formatter] No flagged rows with Source Information found.");
     }
-    console.info("[Interface Formatter] harvested rows:",
-      rows.map((r,i) => ({i: i+1, hasSource: !!r.sourceText, hasAdd: !!r.add, addTitle: r.add?.title})));
     var content = lines.join("<br/>");
     var groupedNav = [];
     var currentGroup = null;
