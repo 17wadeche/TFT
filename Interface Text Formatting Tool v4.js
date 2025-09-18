@@ -559,7 +559,7 @@ async function getOUEnsured(){
   `;
     var htmlParts = [];
     htmlParts.push('<div id="modern-nav">');
-    htmlParts.push(`<div class="brand">Interface Formatter<small>${recordId}</small></div>`);
+    htmlParts.push(`<div class="brand">Interface Formatter<br/>${recordId}</div>`);
     const ouText = OUKey ? `OU: ${OUKey}` : "OU: Unknown";
     htmlParts.push(`<ul>`);
     htmlParts.push(`<li class="ou-pill">${ouText}</li>`);
