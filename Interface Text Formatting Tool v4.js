@@ -61,10 +61,15 @@ function queryDeepForLink(rootNode) {
 function harvestRowsFromGrid(grid) {
   const rows = [];
   const rowEls = grid.querySelectorAll('[role="row"]');
-  rowEls.forEach((rowEl, idx) => {
+  let dataRowCounter = 0;
+  rowEls.forEach(rowEl => {
+    const cells = rowEl.querySelectorAll('td[role="gridcell"]');
+    if (!cells.length) return;
+    const ariaIdx = parseInt(rowEl.getAttribute('aria-rowindex') || '', 10);
+    dataRowCounter += 1;
+    const rowIndex = Number.isFinite(ariaIdx) ? ariaIdx : dataRowCounter;
     let sourceText = '';
     let add = null;
-    const cells = rowEl.querySelectorAll('td[role="gridcell"]');
     cells.forEach(td => {
       const label = (td.getAttribute('data-label') || '').trim();
       const key   = (td.getAttribute('data-col-key-value') || '').trim();
@@ -73,17 +78,17 @@ function harvestRowsFromGrid(grid) {
         sourceText = pullText(rich) || pullText(td) || sourceText;
       }
       if (/^additional info review$/i.test(label) || /AdditionalInfoReview/i.test(key)) {
-        const a = queryDeepForLink(td); // <— sees through shadow DOM
+        const a = queryDeepForLink(td); // walks shadow roots
         if (a) {
           add = {
             title: (a.getAttribute('title') || a.textContent || '').trim(),
             href: a.getAttribute('href') || '#',
-            rowIndex: idx + 1
+            rowIndex
           };
         }
       }
     });
-    if (sourceText || add) rows.push({ sourceText, add });
+    if (sourceText || add) rows.push({ sourceText, add, rowIndex });
   });
   return rows;
 }
@@ -397,8 +402,8 @@ async function getOUEnsured(){
     });
   }
   const rows = await getRowwiseSourceInfoEnsured();
-  const srcRows = rows.filter(r => r.sourceText);
-  const addRows = rows.filter(r => r.add);
+  const srcRows = rows.filter(r => r.sourceText && !r.add);
+  const addRows = rows.filter(r => r.add); 
   const recordId = (await getRecordIdSmart()) || "Record";
   if (originalTab) {
     if (!(await ensureOnTab(originalTab))) {
