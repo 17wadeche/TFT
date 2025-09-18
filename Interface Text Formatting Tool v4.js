@@ -22,6 +22,89 @@ function* allRoots(rootDoc) {
     }
   } catch(_) {}
 }
+function findSourceInfosRoots() {
+  const roots = [];
+  const root = top?.document || document;
+  for (const r of allRoots(root)) {
+    try {
+      r.querySelectorAll('table[role="grid"]').forEach(t => {
+        const label = t.getAttribute('aria-label') || '';
+        if (/^source infos?/i.test(label)) roots.push(t);
+      });
+      r.querySelectorAll('[role="grid"][aria-label]').forEach(t => {
+        const label = t.getAttribute('aria-label') || '';
+        if (/^source infos?/i.test(label)) roots.push(t);
+      });
+    } catch(_) {}
+  }
+  return roots;
+}
+function getAllSourceInfoFromGrid() {
+  const blocks = [];
+  const roots = findSourceInfosRoots();
+  if (!roots.length) return blocks;
+  const pullText = (el) => (el?.textContent || el?.innerText || '').replace(/\s+\n/g, '\n').replace(/\s+/g, ' ').trim();
+  for (const grid of roots) {
+    grid.querySelectorAll('td[role="gridcell"][data-label]').forEach(td => {
+      const label = (td.getAttribute('data-label') || '').trim();
+      if (/^source information$/i.test(label)) {
+        const rich = td.querySelector('lightning-base-formatted-text, lightning-formatted-rich-text, lightning-formatted-text, lst-basic-rich-text');
+        let txt = pullText(rich) || pullText(td);
+        if (!txt) {
+          txt = (td.getAttribute('title') || td.getAttribute('aria-label') || '').trim();
+        }
+        if (txt) blocks.push(txt);
+      }
+    });
+    grid.querySelectorAll('td[role="gridcell"][data-col-key-value]').forEach(td => {
+      const key = td.getAttribute('data-col-key-value') || '';
+      if (/Source_Information/i.test(key)) {
+        const rich = td.querySelector('lightning-base-formatted-text, lightning-formatted-rich-text, lightning-formatted-text, lst-basic-rich-text');
+        const txt = pullText(rich) || pullText(td);
+        if (txt) blocks.push(txt);
+      }
+    });
+  }
+  const seen = new Set();
+  return blocks.filter(b => (seen.has(b) ? false : (seen.add(b), true)));
+}
+function getAdditionalInfoRefsFromGrid() {
+  const refs = [];
+  const roots = findSourceInfosRoots();
+  if (!roots.length) return refs;
+  for (const grid of roots) {
+    grid.querySelectorAll('td[role="gridcell"][data-label], td[role="gridcell"][data-col-key-value]').forEach(td => {
+      const label = (td.getAttribute('data-label') || '').trim();
+      const key   = (td.getAttribute('data-col-key-value') || '').trim();
+      if (/^additional info review$/i.test(label) || /AdditionalInfoReview/i.test(key)) {
+        const a = td.querySelector('a[href]');
+        if (a) {
+          refs.push({
+            title: (a.getAttribute('title') || a.textContent || '').trim(),
+            href: a.getAttribute('href')
+          });
+        }
+      }
+    });
+  }
+  const seen = new Set();
+  return refs.filter(r => {
+    const k = (r.href || '') + '|' + (r.title || '');
+    return seen.has(k) ? false : (seen.add(k), true);
+  });
+}
+async function getSourceInfoFromGridEnsured() {
+  const onSI = await ensureOnTab("Source Info") || await ensureOnTab("Source Information");
+  if (!onSI) return { blocks: [], adds: [] };
+  const started = Date.now();
+  while (Date.now() - started < 8000) {
+    const blocks = getAllSourceInfoFromGrid();
+    const adds   = getAdditionalInfoRefsFromGrid();
+    if (blocks.length || adds.length) return { blocks, adds };
+    await new Promise(r => setTimeout(r, 200));
+  }
+  return { blocks: [], adds: [] };
+}
 function openTabEarly() {
   const w = window.open("about:blank", "_blank");
   if (!w || !w.document) {
@@ -236,7 +319,7 @@ async function getOUEnsured(){
       return true;
     });
   }
-  const txtSourceInfo = await getSourceInfoTextEnsured();
+  const { blocks: srcBlocks, adds: addRefs } = await getSourceInfoFromGridEnsured();
   const recordId = (await getRecordIdSmart()) || "Record";
   if (originalTab) {
     if (!(await ensureOnTab(originalTab))) {
@@ -246,9 +329,6 @@ async function getOUEnsured(){
         await ensureOnTab("Source Information") || await ensureOnTab("Source Info");
       }
     }
-  }
-  if (!txtSourceInfo) {
-    console.warn("[Interface Formatter] No Source Information found to render.");
   }
   function escapeRegExp(str) {
     return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -323,6 +403,7 @@ async function getOUEnsured(){
     var lines = [];
     var links = [];
     var linkIdCounter = 0;
+
     function formatText(text, txtType) {
       text = text.replace(/\r\n|\r/g, "\n");
       text = text.replace(/(?<!\*)\*(?!\*)/g, "\n*");
@@ -423,19 +504,34 @@ async function getOUEnsured(){
     }
     const recordId = (await getRecordIdSmart()) || "Record";
     const textInfoF = ["Source Information"];
-    textInfoF.forEach(function(t) {
-      const txt = (t === "Source Information") ? txtSourceInfo : getFieldTextByLabel(t);
+    if (srcBlocks.length) {
+      const t = "Source Information";
       const tId = t.replace(/\W/gi, "");
-      if (txt) {
-        lines.push('<div class="card">');
-        lines.push('<h2 id="' + tId + '">' + recordId + " " + t + "</h2>");
-        const ft = formatText(txt, t);
+      lines.push('<div class="card">');
+      lines.push('<h2 id="' + tId + '">' + recordId + " " + t + "</h2>");
+      srcBlocks.forEach((block, i) => {
+        const ft = formatText(block, t);
         lines = lines.concat(ft.lines);
-        links.push({ id: tId, title: t });
-        links = links.concat(ft.links);
-        lines.push("</div>");
-      }
-    });
+        if (i < srcBlocks.length - 1) lines.push("<br/>");
+      });
+      links.push({ id: tId, title: t });
+      lines.push("</div>");
+    } else {
+      console.warn("[Interface Formatter] No Source Information rows found.");
+    }
+    if (addRefs.length) {
+      const t = "Additional Source Information";
+      const tId = t.replace(/\W/gi, "");
+      lines.push('<div class="card">');
+      lines.push('<h2 id="' + tId + '">' + recordId + " " + t + "</h2>");
+      addRefs.forEach(ref => {
+        const label = ref.title || "Additional Info Review";
+        const href  = ref.href || "#";
+        lines.push(`<div><a target="_blank" rel="noopener" href="${href}">${label}</a></div>`);
+      });
+      links.push({ id: tId, title: t });
+      lines.push("</div>");
+    }
     var content = lines.join("<br/>");
     var groupedNav = [];
     var currentGroup = null;
