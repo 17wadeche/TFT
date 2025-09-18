@@ -294,6 +294,22 @@ function findRecordIdOnce() {
   } catch(_) {}
   return null;
 }
+function compactLines(arr) {
+  const out = [];
+  let prevBlank = true;
+  for (const s of arr) {
+    const isBlank = !((s || "").replace(/\s+/g, "").length);
+    if (isBlank) {
+      if (prevBlank) continue;
+      prevBlank = true;
+      continue;
+    }
+    prevBlank = false;
+    out.push(s);
+  }
+  if (out.length && !((out[out.length - 1] || "").replace(/\s+/g, "").length)) out.pop();
+  return out;
+}
 async function getRecordIdSmart(timeoutMs = 8000) {
   let id = findRecordIdOnce();
   if (id) return id;
@@ -596,9 +612,7 @@ async function getOUEnsured(){
       lines.push('<h2 id="' + tId + '">' + t + "</h2>");
       srcRows.forEach((r, i) => {
         const ft = formatText(r.sourceText, t);
-        lines.push(`<div><strong>Row ${i+1}</strong></div>`);
         lines = lines.concat(ft.lines);
-        if (i < srcRows.length - 1) lines.push("<br/>");
       });
       links.push({ id: tId, title: t });
       lines.push("</div>");
@@ -612,16 +626,15 @@ async function getOUEnsured(){
       lines.push('<h2 id="' + tId + '">' + t + "</h2>");
       flaggedRows.forEach((r, i) => {
         const ft = formatText(r.sourceText, t);
-        lines.push(`<div><strong>Row ${r.rowIndex ?? (i+1)}</strong></div>`);
         lines = lines.concat(ft.lines);
-        if (i < flaggedRows.length - 1) lines.push("<br/>");
+        if (i < flaggedRows.length - 1) lines.push("");
       });
       links.push({ id: tId, title: t });
       lines.push("</div>");
     } else {
       console.info("[Interface Formatter] No flagged rows with Source Information found.");
     }
-    var content = lines.join("<br/>");
+    var content = compactLines(lines).join("<br/>");
     var groupedNav = [];
     var currentGroup = null;
     links.forEach(function(link) {
