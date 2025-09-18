@@ -36,10 +36,6 @@ function mergeConfig(target, source) {
   if (source.styleWords) target.styleWords.push(...source.styleWords);
   if (source.boldLinesKeyWords) target.boldLinesKeyWords.push(...source.boldLinesKeyWords);
 }
-function norm(s){ return (s||"").replace(/\s+/g," ").trim(); }
-function valOf(el){
-  return el?.value ?? el?.getAttribute?.("value") ?? el?.textContent ?? el?.innerText ?? el?.title ?? "";
-}
 function getFieldTextByLabel(label){
   const re = new RegExp("\\b" + label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b", "i");
   const root = top?.document || document;
