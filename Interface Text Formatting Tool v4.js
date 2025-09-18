@@ -21,6 +21,24 @@ function* allRoots(rootDoc) {
     }
   } catch(_) {}
 }
+function openTabEarly() {
+  const w = window.open("about:blank", "_blank");
+  if (!w || !w.document) {
+    alert("Couldn’t open a new tab. Please allow popups for this site.");
+    return null;
+  }
+  try {
+    w.document.open();
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8">
+      <title>Interface Formatter</title>
+      <style>body{font-family:system-ui,sans-serif;padding:24px;color:#1f2937}
+      .muted{opacity:.7}</style></head>
+      <body><h2>Interface Formatter</h2>
+      <p class="muted">Loading…</p></body></html>`);
+    w.document.close();
+  } catch(_) {}
+  return w;
+}
 const norm = s => (s || "").replace(/\s+/g, " ").trim();
 const valOf = el => el?.value ?? el?.getAttribute?.("value") ?? el?.textContent ?? el?.innerText ?? el?.title ?? "";
 function mergeConfig(target, source) {
@@ -133,24 +151,6 @@ function waitFor(predicate, {interval=150, timeout=4000} = {}){
     tick();
   });
 }
-async function getOUWithTabHop(){
-  let ou = getOUFromPage();
-  if (ou) return ou;
-  const srcTab = findTabByLabel("Source Info");
-  const detTab = findTabByLabel("Details");
-  if (!srcTab || !detTab) return null;
-  if (srcTab.getAttribute("aria-selected") !== "true" && detTab.getAttribute("aria-selected") === "true") {
-    return await waitFor(() => getOUFromPage());
-  }
-  detTab.click();
-  await waitFor(() => detTab.getAttribute("aria-selected") === "true");
-  ou = await waitFor(() => getOUFromPage());
-  try {
-    srcTab.click();
-    await waitFor(() => srcTab.getAttribute("aria-selected") === "true");
-  } catch(_) {}
-  return ou;
-}
 function getOUFromPage() {
   const keyMap = new Map(Object.keys(config).map(k => [k.toLowerCase(), k]));
   const tryMatch = (str) => {
@@ -200,6 +200,8 @@ async function getOUEnsured(){
   return ou || null;
 }
 (async function run() {
+  const tab = openTabEarly();
+  if (!tab) return;
   const originalTab = getActiveTabLabel();
   const OUKey = await getOUEnsured();
   const finalConfig = { styleWords: [], boldLinesKeyWords: [] };
@@ -458,6 +460,17 @@ async function getOUEnsured(){
     box-sizing: border-box;
     z-index: 9999;
   }
+  .ou-pill{
+    margin: 4px 0 12px 0;
+    display: inline-block;
+    padding: 6px 10px;
+    border-radius: 9999px;
+    background: rgba(255,255,255,0.15);
+    color: #E6F6FF;
+    font-weight: 600;
+    letter-spacing:.2px;
+  }
+  .brand small{ display:block; opacity:.85; font-weight:600; margin-top:2px; }
   .brand {
     font-size: 1.4rem;
     font-weight: 900;
@@ -546,8 +559,10 @@ async function getOUEnsured(){
   `;
     var htmlParts = [];
     htmlParts.push('<div id="modern-nav">');
-    htmlParts.push(`<div class="brand">Interface Formatter<br/>${recordId}</div>`);
-    htmlParts.push("<ul>");
+    htmlParts.push(`<div class="brand">Interface Formatter<small>${recordId}</small></div>`);
+    const ouText = OUKey ? `OU: ${OUKey}` : "OU: Unknown";
+    htmlParts.push(`<ul>`);
+    htmlParts.push(`<li class="ou-pill">${ouText}</li>`);
     groupedNav.forEach(group => {
       htmlParts.push("<li>");
       htmlParts.push(
@@ -595,17 +610,25 @@ async function getOUEnsured(){
         console.log('Nav is fixed on wide screens, stacked on top at narrow. Date-based line re-ordering applied.');
       </script>
     `;
-    var q = window.open("../crm_ui_frame/blank.htm");
-    setTimeout(function() {
-      if (!q || !q.document) { alert("Popup blocked or failed to open."); return; }
-      q.document.body.innerHTML = styleBlock + htmlParts.join("") + scriptBlock;
-      setTimeout(function(){
-        const late = getRecordIdFromPage();
-        if (late) {
-          const brand = q.document.querySelector(".brand");
-          if (brand) brand.innerHTML = `Interface Formatter<br/>${late}`;
-        }
-      }, 600);
-    }, 100);
+    function renderInTab(html) {
+      try {
+        tab.document.open();
+        tab.document.write(`<!doctype html><html><head><meta charset="utf-8">
+          <title>Interface Formatter</title></head>
+          <body>${html}</body></html>`);
+        tab.document.close();
+      } catch (_) {
+        setTimeout(() => {
+          try {
+            tab.document.open();
+            tab.document.write(`<!doctype html><html><head><meta charset="utf-8">
+              <title>Interface Formatter</title></head>
+              <body>${html}</body></html>`);
+            tab.document.close();
+          } catch(e) {}
+        }, 100);
+      }
+    }
+    renderInTab(styleBlock + htmlParts.join("") + scriptBlock);
   }
 })();
