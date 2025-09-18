@@ -22,6 +22,83 @@ function* allRoots(rootDoc) {
     }
   } catch(_) {}
 }
+function pullText(el) {
+  return (el?.textContent || el?.innerText || '')
+    .replace(/\s+\n/g, '\n')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+function findSourceInfosGrids() {
+  const root = top?.document || document;
+  const grids = new Set();
+  for (const r of allRoots(root)) {
+    try {
+      r.querySelectorAll('[role="grid"], table[role="grid"]').forEach(g => {
+        const label = (g.getAttribute('aria-label') || '').trim();
+        if (/^source infos?/i.test(label)) grids.add(g);
+      });
+      r.querySelectorAll('[role="grid"]').forEach(g => {
+        if (grids.has(g)) return;
+        const headers = Array.from(g.querySelectorAll('[role="columnheader"], th'))
+          .map(h => pullText(h));
+        if (headers.some(h => /^source information$/i.test(h))) {
+          grids.add(g);
+        }
+      });
+    } catch (_) {}
+  }
+  return Array.from(grids);
+}
+function queryDeepForLink(rootNode) {
+  for (const n of allRoots(rootNode)) {
+    try {
+      const a = n.querySelector && n.querySelector('a[href]');
+      if (a) return a;
+    } catch(_) {}
+  }
+  return null;
+}
+function harvestRowsFromGrid(grid) {
+  const rows = [];
+  const rowEls = grid.querySelectorAll('[role="row"]');
+  rowEls.forEach((rowEl, idx) => {
+    let sourceText = '';
+    let add = null;
+    const cells = rowEl.querySelectorAll('td[role="gridcell"]');
+    cells.forEach(td => {
+      const label = (td.getAttribute('data-label') || '').trim();
+      const key   = (td.getAttribute('data-col-key-value') || '').trim();
+      if (/^source information$/i.test(label) || /Source_Information/i.test(key)) {
+        const rich = td.querySelector('lightning-base-formatted-text, lightning-formatted-rich-text, lightning-formatted-text, lst-basic-rich-text');
+        sourceText = pullText(rich) || pullText(td) || sourceText;
+      }
+      if (/^additional info review$/i.test(label) || /AdditionalInfoReview/i.test(key)) {
+        const a = queryDeepForLink(td); // <— sees through shadow DOM
+        if (a) {
+          add = {
+            title: (a.getAttribute('title') || a.textContent || '').trim(),
+            href: a.getAttribute('href') || '#',
+            rowIndex: idx + 1
+          };
+        }
+      }
+    });
+    if (sourceText || add) rows.push({ sourceText, add });
+  });
+  return rows;
+}
+async function getRowwiseSourceInfoEnsured() {
+  const onSI = await ensureOnTab("Source Info") || await ensureOnTab("Source Information");
+  if (!onSI) return [];
+  const started = Date.now();
+  while (Date.now() - started < 8000) {
+    const grids = findSourceInfosGrids();
+    const rows = grids.flatMap(g => harvestRowsFromGrid(g));
+    if (rows.length) return rows;
+    await new Promise(r => setTimeout(r, 200));
+  }
+  return [];
+}
 function findSourceInfosRoots() {
   const roots = [];
   const root = top?.document || document;
@@ -319,7 +396,9 @@ async function getOUEnsured(){
       return true;
     });
   }
-  const { blocks: srcBlocks, adds: addRefs } = await getSourceInfoFromGridEnsured();
+  const rows = await getRowwiseSourceInfoEnsured();
+  const srcRows = rows.filter(r => r.sourceText);
+  const addRows = rows.filter(r => r.add);
   const recordId = (await getRecordIdSmart()) || "Record";
   if (originalTab) {
     if (!(await ensureOnTab(originalTab))) {
@@ -504,35 +583,37 @@ async function getOUEnsured(){
     }
     const recordId = (await getRecordIdSmart()) || "Record";
     const textInfoF = ["Source Information"];
-    if (srcBlocks.length) {
+    if (srcRows.length) {
       const t = "Source Information";
       const tId = t.replace(/\W/gi, "");
       lines.push('<div class="card">');
       lines.push('<h2 id="' + tId + '">' + t + "</h2>");
-      srcBlocks.forEach((block, i) => {
-        const ft = formatText(block, t);
+      srcRows.forEach((r, i) => {
+        const ft = formatText(r.sourceText, t);
+        lines.push(`<div><strong>Row ${i+1}</strong></div>`);
         lines = lines.concat(ft.lines);
-        if (i < srcBlocks.length - 1) lines.push("<br/>");
+        if (i < srcRows.length - 1) lines.push("<br/>");
       });
       links.push({ id: tId, title: t });
       lines.push("</div>");
     } else {
       console.warn("[Interface Formatter] No Source Information rows found.");
     }
-    if (addRefs.length) {
+    if (addRows.length) {
       const t = "Additional Source Information";
       const tId = t.replace(/\W/gi, "");
       lines.push('<div class="card">');
       lines.push('<h2 id="' + tId + '">' + t + "</h2>");
-      addRefs.forEach(ref => {
-        const label = ref.title || "Additional Info Review";
-        const href  = ref.href || "#";
-        lines.push(`<div><a target="_blank" rel="noopener" href="${href}">${label}</a></div>`);
+      addRows.forEach(r => {
+        const { title, href, rowIndex } = r.add;
+        const label = title || "Additional Info Review";
+        lines.push(`<div>Row ${rowIndex}: <a target="_blank" rel="noopener" href="${href}">${label}</a></div>`);
       });
       links.push({ id: tId, title: t });
       lines.push("</div>");
     }
-    console.info("[Interface Formatter] srcBlocks:", srcBlocks.length, " addRefs:", addRefs.length, addRefs);
+    console.info("[Interface Formatter] harvested rows:",
+      rows.map((r,i) => ({i: i+1, hasSource: !!r.sourceText, hasAdd: !!r.add, addTitle: r.add?.title})));
     var content = lines.join("<br/>");
     var groupedNav = [];
     var currentGroup = null;
