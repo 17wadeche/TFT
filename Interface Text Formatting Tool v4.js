@@ -1,5 +1,6 @@
 /* eslint semi: ["error", "always"] */
 import config from "./styles";
+const CN_RE = /\b[A-Z]{2,4}-\d{3,}\b/;
 function* allRoots(rootDoc) {
   function* walk(node) {
     if (node) yield node;
@@ -94,21 +95,27 @@ async function ensureOnTab(label, {timeout=6000} = {}){
   const ok = await waitFor(() => wanted.getAttribute("aria-selected") === "true", {timeout});
   return !!ok;
 }
-function getRecordIdFromPage(){
+function findRecordIdOnce() {
   const root = top?.document || document;
-  const titleHit = (root.title || "").match(/\b[A-Z]{2}-\d{3,}\b/);
-  if (titleHit) return titleHit[0];
-  const cnRe = /\b[A-Z]{2}-\d{3,}\b/;
+  const tHit = (root.title || "").match(CN_RE);
+  if (tHit) return tHit[0];
   for (const r of allRoots(root)) {
     try {
-      let els = Array.from(r.querySelectorAll("[data-output-element-id='output-field']"));
-      els = els.concat(Array.from(r.querySelectorAll("lightning-formatted-text[slot='output']")));
-      els = els.concat(Array.from(r.querySelectorAll("lightning-formatted-text")));
+      const els = [
+        ...r.querySelectorAll("[data-output-element-id='output-field']"),
+        ...r.querySelectorAll("lightning-formatted-text[slot='output']"),
+        ...r.querySelectorAll("lightning-formatted-text"),
+        ...r.querySelectorAll(".slds-page-header__title, h1, h2, [title], [aria-label]")
+      ];
       for (const el of els) {
-        const t = norm(valOf(el));
-        if (!t) continue;
-        const m = t.match(cnRe);
-        if (m) return m[0];
+        const candidates = [
+          el?.textContent, el?.innerText, el?.title, el?.getAttribute?.("title"),
+          el?.getAttribute?.("aria-label"), el?.getAttribute?.("value")
+        ];
+        for (const s of candidates) {
+          const m = (s || "").match(CN_RE);
+          if (m) return m[0];
+        }
       }
     } catch(_) {}
   }
@@ -116,11 +123,21 @@ function getRecordIdFromPage(){
     const walker = root.createTreeWalker(root.body, NodeFilter.SHOW_TEXT, null);
     let node;
     while ((node = walker.nextNode())) {
-      const txt = norm(node.nodeValue);
-      const m = txt.match(cnRe);
+      const m = (node.nodeValue || "").match(CN_RE);
       if (m) return m[0];
     }
   } catch(_) {}
+  return null;
+}
+async function getRecordIdSmart(timeoutMs = 8000) {
+  let id = findRecordIdOnce();
+  if (id) return id;
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    await new Promise(r => setTimeout(r, 150));
+    id = findRecordIdOnce();
+    if (id) return id;
+  }
   return null;
 }
 function findTabByLabel(label){
@@ -220,7 +237,7 @@ async function getOUEnsured(){
     });
   }
   const txtSourceInfo = await getSourceInfoTextEnsured();
-  const recordId = getRecordIdFromPage() || "Record";
+  const recordId = (await getRecordIdSmart()) || "Record";
   if (originalTab) {
     if (!(await ensureOnTab(originalTab))) {
       if (/^details$/i.test(originalTab)) {
@@ -404,7 +421,7 @@ async function getOUEnsured(){
         links: LinksSorted
       };
     }
-    const recordId = getRecordIdFromPage() || "Record";
+    const recordId = (await getRecordIdSmart()) || "Record";
     const textInfoF = ["Source Information"];
     textInfoF.forEach(function(t) {
       const txt = (t === "Source Information") ? txtSourceInfo : getFieldTextByLabel(t);
