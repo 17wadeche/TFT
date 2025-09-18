@@ -508,7 +508,7 @@ async function getOUEnsured(){
       const t = "Source Information";
       const tId = t.replace(/\W/gi, "");
       lines.push('<div class="card">');
-      lines.push('<h2 id="' + tId + '">' + recordId + " " + t + "</h2>");
+      lines.push('<h2 id="' + tId + '">' + t + "</h2>");
       srcBlocks.forEach((block, i) => {
         const ft = formatText(block, t);
         lines = lines.concat(ft.lines);
@@ -523,7 +523,7 @@ async function getOUEnsured(){
       const t = "Additional Source Information";
       const tId = t.replace(/\W/gi, "");
       lines.push('<div class="card">');
-      lines.push('<h2 id="' + tId + '">' + recordId + " " + t + "</h2>");
+      lines.push('<h2 id="' + tId + '">' + t + "</h2>");
       addRefs.forEach(ref => {
         const label = ref.title || "Additional Info Review";
         const href  = ref.href || "#";
@@ -532,6 +532,7 @@ async function getOUEnsured(){
       links.push({ id: tId, title: t });
       lines.push("</div>");
     }
+    console.info("[Interface Formatter] srcBlocks:", srcBlocks.length, " addRefs:", addRefs.length, addRefs);
     var content = lines.join("<br/>");
     var groupedNav = [];
     var currentGroup = null;
