@@ -104,89 +104,6 @@ async function getRowwiseSourceInfoEnsured() {
   }
   return [];
 }
-function findSourceInfosRoots() {
-  const roots = [];
-  const root = top?.document || document;
-  for (const r of allRoots(root)) {
-    try {
-      r.querySelectorAll('table[role="grid"]').forEach(t => {
-        const label = t.getAttribute('aria-label') || '';
-        if (/^source infos?/i.test(label)) roots.push(t);
-      });
-      r.querySelectorAll('[role="grid"][aria-label]').forEach(t => {
-        const label = t.getAttribute('aria-label') || '';
-        if (/^source infos?/i.test(label)) roots.push(t);
-      });
-    } catch(_) {}
-  }
-  return roots;
-}
-function getAllSourceInfoFromGrid() {
-  const blocks = [];
-  const roots = findSourceInfosRoots();
-  if (!roots.length) return blocks;
-  const pullText = (el) => (el?.textContent || el?.innerText || '').replace(/\s+\n/g, '\n').replace(/\s+/g, ' ').trim();
-  for (const grid of roots) {
-    grid.querySelectorAll('td[role="gridcell"][data-label]').forEach(td => {
-      const label = (td.getAttribute('data-label') || '').trim();
-      if (/^source information$/i.test(label)) {
-        const rich = td.querySelector('lightning-base-formatted-text, lightning-formatted-rich-text, lightning-formatted-text, lst-basic-rich-text');
-        let txt = pullText(rich) || pullText(td);
-        if (!txt) {
-          txt = (td.getAttribute('title') || td.getAttribute('aria-label') || '').trim();
-        }
-        if (txt) blocks.push(txt);
-      }
-    });
-    grid.querySelectorAll('td[role="gridcell"][data-col-key-value]').forEach(td => {
-      const key = td.getAttribute('data-col-key-value') || '';
-      if (/Source_Information/i.test(key)) {
-        const rich = td.querySelector('lightning-base-formatted-text, lightning-formatted-rich-text, lightning-formatted-text, lst-basic-rich-text');
-        const txt = pullText(rich) || pullText(td);
-        if (txt) blocks.push(txt);
-      }
-    });
-  }
-  const seen = new Set();
-  return blocks.filter(b => (seen.has(b) ? false : (seen.add(b), true)));
-}
-function getAdditionalInfoRefsFromGrid() {
-  const refs = [];
-  const roots = findSourceInfosRoots();
-  if (!roots.length) return refs;
-  for (const grid of roots) {
-    grid.querySelectorAll('td[role="gridcell"][data-label], td[role="gridcell"][data-col-key-value]').forEach(td => {
-      const label = (td.getAttribute('data-label') || '').trim();
-      const key   = (td.getAttribute('data-col-key-value') || '').trim();
-      if (/^additional info review$/i.test(label) || /AdditionalInfoReview/i.test(key)) {
-        const a = td.querySelector('a[href]');
-        if (a) {
-          refs.push({
-            title: (a.getAttribute('title') || a.textContent || '').trim(),
-            href: a.getAttribute('href')
-          });
-        }
-      }
-    });
-  }
-  const seen = new Set();
-  return refs.filter(r => {
-    const k = (r.href || '') + '|' + (r.title || '');
-    return seen.has(k) ? false : (seen.add(k), true);
-  });
-}
-async function getSourceInfoFromGridEnsured() {
-  const onSI = await ensureOnTab("Source Info") || await ensureOnTab("Source Information");
-  if (!onSI) return { blocks: [], adds: [] };
-  const started = Date.now();
-  while (Date.now() - started < 8000) {
-    const blocks = getAllSourceInfoFromGrid();
-    const adds   = getAdditionalInfoRefsFromGrid();
-    if (blocks.length || adds.length) return { blocks, adds };
-    await new Promise(r => setTimeout(r, 200));
-  }
-  return { blocks: [], adds: [] };
-}
 function openTabEarly() {
   const w = window.open("about:blank", "_blank");
   if (!w || !w.document) {
@@ -211,26 +128,6 @@ function mergeConfig(target, source) {
   if (!source) return;
   if (source.styleWords) target.styleWords.push(...source.styleWords);
   if (source.boldLinesKeyWords) target.boldLinesKeyWords.push(...source.boldLinesKeyWords);
-}
-function getFieldTextByLabel(label){
-  const re = new RegExp("\\b" + label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b", "i");
-  const root = top?.document || document;
-  for (const r of allRoots(root)) {
-    try {
-      const candidates = Array.from(r.querySelectorAll(".slds-form-element__label, label, span, div, lightning-output-field"));
-      const labelEl = candidates.find(n => re.test(norm(n.textContent)));
-      if (!labelEl) continue;
-      const container = labelEl.closest("records-record-layout-item, lightning-layout, .slds-form-element, div, section") || labelEl.parentElement;
-      if (!container) continue;
-      const valueEl =
-        container.querySelector("[slot='output'][data-output-element-id='output-field']") ||
-        container.querySelector("lightning-formatted-textarea, lightning-formatted-rich-text, lightning-formatted-text") ||
-        container.querySelector("[data-output-element], [data-value], [title]");
-      const v = norm(valOf(valueEl));
-      if (v) return v;
-    } catch(_) {}
-  }
-  return null;
 }
 function getActiveTabLabel(){
   const root = top?.document || document;
@@ -383,12 +280,6 @@ function getOUFromPage() {
   }
   return null;
 }
-async function getSourceInfoTextEnsured(){
-  const onSI = await ensureOnTab("Source Information") || await ensureOnTab("Source Info");
-  if (!onSI) return null;
-  const txt = await waitFor(() => getFieldTextByLabel("Source Information") || getFieldTextByLabel("Source Info"), {timeout: 6000});
-  return txt || null;
-}
 async function getOUEnsured(){
   let ou = getOUFromPage();
   if (ou) return ou;
@@ -504,33 +395,22 @@ async function getOUEnsured(){
     var lines = [];
     var links = [];
     var linkIdCounter = 0;
-
     function formatText(text, txtType) {
       text = text.replace(/\r\n|\r/g, "\n");
       text = text.replace(/(?<!\*)\*(?!\*)/g, "\n*");
       text = text.replace(/-###-From (SR|PE)-/g, "\n$&");
       var linesArr = text.split("\n").filter(l => l.trim().length > 0);
+      const DATE_RE = /(\b(?:\d{4}[-/.](?:\d{1,2}|[A-Za-z]{3})[-/.]\d{1,2}|(?:\d{1,2}[-/ ](?:[A-Za-z]{3,9})[-/ ]\d{4})|(?:[A-Za-z]{3,9} \d{1,2}, \d{4})|(?:\d{1,2}[-/]\d{1,2}[-/]\d{4}))(?: \d{1,2}:\d{2}(?::\d{2})?(?: ?[APap][Mm])?)?\b)/;
       var localLinks = [];
       var startLine = 0;
       let newLinesArr = [];
       linesArr.forEach(function(l, lineNo) {
         l = l.replace(/\s+$/, "");
         l = l.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        let dateMatch = l.includes("WEBMREMOTEWS") ? l.match(
-          /(\b(?:\d{4}[-/.](?:\d{1,2}|[A-Za-z]{3})[-/.]\d{1,2}|(?:\d{1,2}[-/ ](?:[A-Za-z]{3,9})[-/ ]\d{4})|(?:[A-Za-z]{3,9} \d{1,2}, \d{4})|(?:\d{1,2}[-/]\d{1,2}[-/]\d{4}))(?: \d{1,2}:\d{2}(?::\d{2})?(?: ?[APap][Mm])?)?\b)/
-        ) : null;
-        let hasDate = false;
-        if (
-          l.includes("WEBMREMOTEWS") &&
-          dateMatch &&
-          newLinesArr.length > 0 &&                              
-          newLinesArr[newLinesArr.length - 1].trim() !== "" 
-        ) {
-          newLinesArr.push("");
-        }
-        if (dateMatch) {
-          hasDate = true;
-          let dateStr = dateMatch[0];
+        const dateMatch = l.match(DATE_RE);
+        const hasDate = !!dateMatch;
+        if (hasDate) {
+          const dateStr = dateMatch[0];
           l =
             `<span style="position: relative;" id="lnk${linkIdCounter}">` +
             `<span class="arrowPointer" id="lnk${linkIdCounter}-arrow">&#x2192;</span>` +
@@ -560,7 +440,7 @@ async function getOUEnsured(){
           linkIdCounter++;
         }
         boldLinesKeyWords.forEach(kw => {
-          if (l.indexOf(kw) >= 0 && !hasDate) {
+          if (!hasDate && l.indexOf(kw) >= 0) {
             l =
               `<span style="position: relative;" id="lnk${linkIdCounter}">` +
               `<span class="arrowPointer" id="lnk${linkIdCounter}-arrow">&#x2192;</span>` +
@@ -579,16 +459,12 @@ async function getOUEnsured(){
         l = applyCombinedStyles(l, styleWords);
         newLinesArr.push(l);
       });
-      linesArr = newLinesArr;
       if (localLinks.length > 0 && txtType !== "General") {
-        localLinks[localLinks.length - 1].end = linesArr.length - 1;
-        startLine = linesArr.length;
+        localLinks[localLinks.length - 1].end = newLinesArr.length - 1;
+        startLine = newLinesArr.length;
       }
       if (localLinks.length === 0) {
-        return {
-          lines: linesArr,
-          links: []
-        };
+        return { lines: newLinesArr, links: [] };
       }
       var LinksSorted = localLinks.concat().sort(function(a, b) {
         var dateA = new Date(a.title);
@@ -598,10 +474,7 @@ async function getOUEnsured(){
         }
         return dateA - dateB;
       });
-      return {
-        lines: linesArr,
-        links: LinksSorted
-      };
+      return { lines: newLinesArr, links: LinksSorted };
     }
     const recordId = (await getRecordIdSmart()) || "Record";
     const textInfoF = ["Source Information"];
@@ -609,30 +482,27 @@ async function getOUEnsured(){
       const t = "Source Information";
       const tId = t.replace(/\W/gi, "");
       lines.push('<div class="card">');
-      lines.push('<h2 id="' + tId + '">' + t + "</h2>");
-      srcRows.forEach((r, i) => {
+      lines.push('<h2 id="' + tId + '"><span class="arrowPointer" id="' + tId + '-arrow">&#x2192;</span>' + t + "</h2>");
+      links.push({ id: tId, title: t }); 
+      srcRows.forEach((r) => {
         const ft = formatText(r.sourceText, t);
         lines = lines.concat(ft.lines);
+        ft.links.forEach(l => links.push(l));
       });
-      links.push({ id: tId, title: t });
       lines.push("</div>");
-    } else {
-      console.warn("[Interface Formatter] No unflagged Source Information rows found.");
     }
     if (flaggedRows.length) {
       const t = "Additional Source Information";
       const tId = t.replace(/\W/gi, "");
       lines.push('<div class="card">');
-      lines.push('<h2 id="' + tId + '">' + t + "</h2>");
-      flaggedRows.forEach((r, i) => {
+      lines.push('<h2 id="' + tId + '"><span class="arrowPointer" id="' + tId + '-arrow">&#x2192;</span>' + t + "</h2>");
+      links.push({ id: tId, title: t }); 
+      flaggedRows.forEach((r) => {
         const ft = formatText(r.sourceText, t);
         lines = lines.concat(ft.lines);
-        if (i < flaggedRows.length - 1) lines.push("");
+        ft.links.forEach(l => links.push(l));   
       });
-      links.push({ id: tId, title: t });
       lines.push("</div>");
-    } else {
-      console.info("[Interface Formatter] No flagged rows with Source Information found.");
     }
     var content = compactLines(lines).join("<br/>");
     var groupedNav = [];
@@ -764,7 +634,7 @@ async function getOUEnsured(){
     display: none;
     font-size: 1.2em;
     margin-right: 5px;
-    animation: arrowFade 2s ease-out;
+    animation: arrowFade 3s ease-out;
   }
   @keyframes arrowFade {
     0% { opacity: 1; }
@@ -781,14 +651,21 @@ async function getOUEnsured(){
     groupedNav.forEach(group => {
       htmlParts.push("<li>");
       htmlParts.push(
-        `<a href="javascript:void(0);" onclick="
+        `
+        <a href="javascript:void(0);" onclick="
           const el = document.getElementById('${group.header.id}');
+          const arrow = document.getElementById('${group.header.id}-arrow');
           if (el) {
             el.scrollIntoView({ behavior: 'smooth' });
+            if (arrow) {
+              arrow.style.display = 'inline';
+              setTimeout(() => { arrow.style.display = 'none'; }, 3000); // was 2000, and previously no arrow for headers
+            }
           }
         ">
-        ${group.header.title}
-        </a>`
+          ${group.header.title}
+        </a>
+        `
       );
       if (group.children && group.children.length > 0) {
         htmlParts.push("<ul>");
@@ -801,10 +678,9 @@ async function getOUEnsured(){
                     const arrow = document.getElementById('${child.id}-arrow');
                     if (el) {
                       el.scrollIntoView({ behavior: 'smooth' });
-                      // Show arrow for two seconds
                       if (arrow) {
                         arrow.style.display = 'inline';
-                        setTimeout(() => { arrow.style.display = 'none'; }, 2000);
+                        setTimeout(() => { arrow.style.display = 'none'; }, 3000);
                       }
                     }
                   ">
