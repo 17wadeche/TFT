@@ -236,6 +236,7 @@ const config = {
           'WEBMREMOTEWS Service Notification interface update',
           'WEBREMOTEWS MPXR interface update',
           'WEBREMOTEWS INTERFACE UPDATE',
+          'WEBMREMOTEWS INTERFACE UPDATE: SFDC MNAV',
           'Subject Code',
           'Damage Code',
           'Cause Code',
