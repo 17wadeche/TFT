@@ -1,5 +1,6 @@
 /* eslint semi: ["error", "always"] */
 import config from "./BUstyles";
+const GLOBAL_MATCH_MODE = 'substring';
 var primBUPartner = top.GUIDE.PE[top.GUIDE.PE.curPrEv].PartnersTable.find(
   p => p.PartnerFunction === "BU Responsible" && p.MainPartner
 );
@@ -16,10 +17,12 @@ function mergeConfig(target, source) {
   if (source.boldLinesKeyWords) {
     target.boldLinesKeyWords.push(...source.boldLinesKeyWords);
   }
+  if (source.matchMode) target.matchMode = source.matchMode;
 }
 var finalConfig = {
   styleWords: [],
-  boldLinesKeyWords: []
+  boldLinesKeyWords: [],
+  matchMode: GLOBAL_MATCH_MODE
 };
 if (BUresp && config[BUresp]) {
   mergeConfig(finalConfig, config[BUresp]);
@@ -44,64 +47,46 @@ if (BUresp && config[BUresp]) {
 function escapeRegExp(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
-function applyCombinedStyles(text, styleRules) {
+function applyCombinedStyles(text, styleRules, defaultMatchMode = 'word') {
   let events = [];
   styleRules.forEach(rule => {
+    const mode = (rule.matchMode || defaultMatchMode).toLowerCase(); // rule can override global
     rule.words.forEach(word => {
-      const pattern = /\s/.test(word)
-        ? escapeRegExp(word)
-        : "\\b" + escapeRegExp(word) + "\\b";
+      let pattern;
+      if (/\s/.test(word)) {
+        pattern = escapeRegExp(word);
+      } else {
+        pattern = mode === 'substring'
+          ? escapeRegExp(word)                  // inner-word allowed
+          : "\\b" + escapeRegExp(word) + "\\b"; // whole-word only
+      }
       const regex = new RegExp(pattern, "gi");
       let match;
       while ((match = regex.exec(text)) !== null) {
-        events.push({
-          index: match.index,
-          type: "start",
-          style: rule.style
-        });
-        events.push({
-          index: match.index + match[0].length,
-          type: "end",
-          style: rule.style
-        });
+        events.push({ index: match.index, type: "start", style: rule.style });
+        events.push({ index: match.index + match[0].length, type: "end", style: rule.style });
+        if (match.index === regex.lastIndex) regex.lastIndex++; // avoid zero-length loops
       }
     });
   });
-  events.sort((a, b) => {
-    if (a.index !== b.index) return a.index - b.index;
-    return a.type === "start" ? -1 : 1;
-  });
-  let result = "";
-  let currentIndex = 0;
-  let activeStyles = [];
+  events.sort((a, b) => (a.index !== b.index ? a.index - b.index : a.type === "start" ? -1 : 1));
+  let result = "", currentIndex = 0, activeStyles = [];
   events.forEach(event => {
     if (event.index > currentIndex) {
-      let segment = text.slice(currentIndex, event.index);
-      if (activeStyles.length > 0) {
-        let combined = activeStyles.join(";");
-        result += `<span style="${combined}">${segment}</span>`;
-      } else {
-        result += segment;
-      }
+      const segment = text.slice(currentIndex, event.index);
+      result += activeStyles.length ? `<span style="${activeStyles.join(";")}">${segment}</span>` : segment;
       currentIndex = event.index;
     }
     if (event.type === "start") {
       activeStyles.push(event.style);
     } else {
-      let idx = activeStyles.indexOf(event.style);
-      if (idx !== -1) {
-        activeStyles.splice(idx, 1);
-      }
+      const idx = activeStyles.indexOf(event.style);
+      if (idx !== -1) activeStyles.splice(idx, 1);
     }
   });
   if (currentIndex < text.length) {
-    let segment = text.slice(currentIndex);
-    if (activeStyles.length > 0) {
-      let combined = activeStyles.join(";");
-      result += `<span style="${combined}">${segment}</span>`;
-    } else {
-      result += segment;
-    }
+    const segment = text.slice(currentIndex);
+    result += activeStyles.length ? `<span style="${activeStyles.join(";")}">${segment}</span>` : segment;
   }
   return result;
 }
@@ -185,7 +170,7 @@ if (finalConfig.styleWords.length || finalConfig.boldLinesKeyWords.length) {
           linkIdCounter++;
         }
       });
-      l = applyCombinedStyles(l, styleWords);
+      l = applyCombinedStyles(l, styleWords, finalConfig.matchMode);
       newLinesArr.push(l);
     });
     linesArr = newLinesArr;
