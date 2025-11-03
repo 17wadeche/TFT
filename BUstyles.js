@@ -299,6 +299,7 @@ const config = {
           'heat',
           'Hot',
           'hot',
+          'overheating',
           'heating',
           'Heating',
           'Heated',
