@@ -87,7 +87,10 @@ const defaultStyleWords = [
       'General Summary of Failure(s)',
       'Is General Failure Resolved?',
       'Hardware Failure',
-      'Return Item Status'
+      'Return Item Status',
+      'Cause',
+      'Troubleshooting',
+      'Subject'
     ]
   },
   {
@@ -129,6 +132,7 @@ const defaultStyleWords = [
       'Logs and Archive Uploaded',
       'PASS',
       'YES',
+      'yes',
       'Return Item Status'
 
     ]
@@ -194,7 +198,10 @@ const defaultStyleWords = [
       'General Summary of Failure(s)',
       'Is General Failure Resolved?',
       'Finding & Conclusions',
-      'Hardware Failure'
+      'Hardware Failure',
+      'Cause',
+      'Troubleshooting',
+      'Subject'
     ]
   }
 ]
